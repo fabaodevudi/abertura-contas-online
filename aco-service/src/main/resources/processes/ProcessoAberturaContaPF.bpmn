@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_1" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.0.0">
+  <bpmn:process id="ProcessoAberturaContaPF" name="Processo Abertura Conta Pessoa Física" isExecutable="true" camunda:historyTimeToLive="30">
+    <bpmn:startEvent id="StartEvent_1" name="Início">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Validação Topaz -->
+    <bpmn:serviceTask id="ValidarTopaz" name="Validar Topaz" camunda:delegateExpression="${validarTopazDelegate}">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:boundaryEvent id="ErrorTopaz" attachedToRef="ValidarTopaz">
+      <bpmn:errorEventDefinition errorRef="TOPAZ_REJEITADO"/>
+    </bpmn:boundaryEvent>
+    
+    <!-- Gateway após Topaz -->
+    <bpmn:exclusiveGateway id="GatewayTopaz" name="Topaz Aprovado?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Rejeitar</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ValidarTopaz"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="ValidarTopaz" targetRef="GatewayTopaz"/>
+    <bpmn:sequenceFlow id="Flow_3" name="Sim" sourceRef="GatewayTopaz" targetRef="ValidarAntifraude">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${topazAprovado == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Validação Antifraude -->
+    <bpmn:serviceTask id="ValidarAntifraude" name="Validar Antifraude" camunda:delegateExpression="${validarAntifraudeDelegate}">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:boundaryEvent id="ErrorAntifraude" attachedToRef="ValidarAntifraude">
+      <bpmn:errorEventDefinition errorRef="ANTIFRAUDE_REJEITADO"/>
+    </bpmn:boundaryEvent>
+    
+    <bpmn:exclusiveGateway id="GatewayAntifraude" name="Antifraude Aprovado?">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejeitarAntifraude</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="ValidarAntifraude" targetRef="GatewayAntifraude"/>
+    <bpmn:sequenceFlow id="Flow_5" name="Sim" sourceRef="GatewayAntifraude" targetRef="ValidarPix">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${antifraudeAprovado == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RejeitarAntifraude" name="Não" sourceRef="GatewayAntifraude" targetRef="RegistrarLogRejeicao">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${antifraudeAprovado == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Validação PIX -->
+    <bpmn:serviceTask id="ValidarPix" name="Validar PIX" camunda:delegateExpression="${validarPixDelegate}">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:boundaryEvent id="ErrorPix" attachedToRef="ValidarPix">
+      <bpmn:errorEventDefinition errorRef="PIX_REJEITADO"/>
+    </bpmn:boundaryEvent>
+    
+    <bpmn:exclusiveGateway id="GatewayPix" name="PIX Aprovado?">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejeitarPix</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="ValidarPix" targetRef="GatewayPix"/>
+    <bpmn:sequenceFlow id="Flow_7" name="Sim" sourceRef="GatewayPix" targetRef="ValidarSerasa">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${pixAprovado == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RejeitarPix" name="Não" sourceRef="GatewayPix" targetRef="RegistrarLogRejeicao">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${pixAprovado == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Validação Serasa -->
+    <bpmn:serviceTask id="ValidarSerasa" name="Validar Serasa" camunda:delegateExpression="${validarSerasaDelegate}">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:boundaryEvent id="ErrorSerasa" attachedToRef="ValidarSerasa">
+      <bpmn:errorEventDefinition errorRef="SERASA_REJEITADO"/>
+    </bpmn:boundaryEvent>
+    
+    <bpmn:exclusiveGateway id="GatewaySerasa" name="Serasa Aprovado?">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejeitarSerasa</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="ValidarSerasa" targetRef="GatewaySerasa"/>
+    <bpmn:sequenceFlow id="Flow_9" name="Sim" sourceRef="GatewaySerasa" targetRef="ValidarProvaVida">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${serasaAprovado == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RejeitarSerasa" name="Não" sourceRef="GatewaySerasa" targetRef="RegistrarLogRejeicao">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${serasaAprovado == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Validação Prova de Vida -->
+    <bpmn:serviceTask id="ValidarProvaVida" name="Validar Prova de Vida" camunda:delegateExpression="${validarProvaVidaDelegate}">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:boundaryEvent id="ErrorProvaVida" attachedToRef="ValidarProvaVida">
+      <bpmn:errorEventDefinition errorRef="PROVA_VIDA_REJEITADO"/>
+    </bpmn:boundaryEvent>
+    
+    <bpmn:exclusiveGateway id="GatewayProvaVida" name="Prova de Vida Aprovado?">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejeitarProvaVida</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="ValidarProvaVida" targetRef="GatewayProvaVida"/>
+    <bpmn:sequenceFlow id="Flow_11" name="Sim" sourceRef="GatewayProvaVida" targetRef="AbrirContaSistemaInterno">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${provaVidaAprovado == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RejeitarProvaVida" name="Não" sourceRef="GatewayProvaVida" targetRef="RegistrarLogRejeicao">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${provaVidaAprovado == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- Abertura de Conta no Sistema Interno -->
+    <bpmn:serviceTask id="AbrirContaSistemaInterno" name="Abrir Conta Sistema Interno" camunda:delegateExpression="${abrirContaSistemaInternoDelegate}">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:boundaryEvent id="ErrorAberturaConta" attachedToRef="AbrirContaSistemaInterno">
+      <bpmn:errorEventDefinition errorRef="ERRO_ABERTURA_CONTA"/>
+    </bpmn:boundaryEvent>
+    
+    <bpmn:serviceTask id="RegistrarLogSucesso" name="Registrar Log Sucesso" camunda:delegateExpression="${registrarLogDelegate}">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="AbrirContaSistemaInterno" targetRef="RegistrarLogSucesso"/>
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="RegistrarLogSucesso" targetRef="EndEvent_Sucesso"/>
+    
+    <!-- Rejeição -->
+    <bpmn:serviceTask id="RegistrarLogRejeicao" name="Registrar Log Rejeição" camunda:delegateExpression="${registrarLogDelegate}">
+      <bpmn:incoming>Flow_Rejeitar</bpmn:incoming>
+      <bpmn:incoming>Flow_RejeitarAntifraude</bpmn:incoming>
+      <bpmn:incoming>Flow_RejeitarPix</bpmn:incoming>
+      <bpmn:incoming>Flow_RejeitarSerasa</bpmn:incoming>
+      <bpmn:incoming>Flow_RejeitarProvaVida</bpmn:incoming>
+      <bpmn:incoming>Flow_ErrorTopaz</bpmn:incoming>
+      <bpmn:incoming>Flow_ErrorAntifraude</bpmn:incoming>
+      <bpmn:incoming>Flow_ErrorPix</bpmn:incoming>
+      <bpmn:incoming>Flow_ErrorSerasa</bpmn:incoming>
+      <bpmn:incoming>Flow_ErrorProvaVida</bpmn:incoming>
+      <bpmn:incoming>Flow_ErrorAberturaConta</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:sequenceFlow id="Flow_Rejeitar" name="Não" sourceRef="GatewayTopaz" targetRef="RegistrarLogRejeicao">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${topazAprovado == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ErrorTopaz" sourceRef="ErrorTopaz" targetRef="RegistrarLogRejeicao"/>
+    <bpmn:sequenceFlow id="Flow_ErrorAntifraude" sourceRef="ErrorAntifraude" targetRef="RegistrarLogRejeicao"/>
+    <bpmn:sequenceFlow id="Flow_ErrorPix" sourceRef="ErrorPix" targetRef="RegistrarLogRejeicao"/>
+    <bpmn:sequenceFlow id="Flow_ErrorSerasa" sourceRef="ErrorSerasa" targetRef="RegistrarLogRejeicao"/>
+    <bpmn:sequenceFlow id="Flow_ErrorProvaVida" sourceRef="ErrorProvaVida" targetRef="RegistrarLogRejeicao"/>
+    <bpmn:sequenceFlow id="Flow_ErrorAberturaConta" sourceRef="ErrorAberturaConta" targetRef="RegistrarLogRejeicao"/>
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="RegistrarLogRejeicao" targetRef="EndEvent_Rejeicao"/>
+    
+    <!-- Eventos Finais -->
+    <bpmn:endEvent id="EndEvent_Sucesso" name="Conta Aberta com Sucesso"/>
+    <bpmn:endEvent id="EndEvent_Rejeicao" name="Solicitação Rejeitada"/>
+  </bpmn:process>
+  
+  <!-- Error Definitions -->
+  <bpmn:error id="TOPAZ_REJEITADO" name="Topaz Rejeitado"/>
+  <bpmn:error id="ANTIFRAUDE_REJEITADO" name="Antifraude Rejeitado"/>
+  <bpmn:error id="PIX_REJEITADO" name="PIX Rejeitado"/>
+  <bpmn:error id="SERASA_REJEITADO" name="Serasa Rejeitado"/>
+  <bpmn:error id="PROVA_VIDA_REJEITADO" name="Prova de Vida Rejeitado"/>
+  <bpmn:error id="ERRO_ABERTURA_CONTA" name="Erro Abertura Conta"/>
+  
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ProcessoAberturaContaPF">
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="215" y="117"/>
+        <di:waypoint x="270" y="117"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="370" y="117"/>
+        <di:waypoint x="425" y="117"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="450" y="117"/>
+        <di:waypoint x="450" y="180"/>
+        <di:waypoint x="270" y="180"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="370" y="180"/>
+        <di:waypoint x="425" y="180"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="450" y="180"/>
+        <di:waypoint x="450" y="243"/>
+        <di:waypoint x="270" y="243"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="370" y="243"/>
+        <di:waypoint x="425" y="243"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
+        <di:waypoint x="450" y="243"/>
+        <di:waypoint x="450" y="306"/>
+        <di:waypoint x="270" y="306"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
+        <di:waypoint x="370" y="306"/>
+        <di:waypoint x="425" y="306"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9">
+        <di:waypoint x="450" y="306"/>
+        <di:waypoint x="450" y="369"/>
+        <di:waypoint x="270" y="369"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10">
+        <di:waypoint x="370" y="369"/>
+        <di:waypoint x="425" y="369"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11">
+        <di:waypoint x="450" y="369"/>
+        <di:waypoint x="450" y="432"/>
+        <di:waypoint x="270" y="432"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12">
+        <di:waypoint x="370" y="432"/>
+        <di:waypoint x="425" y="432"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13">
+        <di:waypoint x="370" y="432"/>
+        <di:waypoint x="425" y="432"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Rejeitar_di" bpmnElement="Flow_Rejeitar">
+        <di:waypoint x="450" y="117"/>
+        <di:waypoint x="600" y="117"/>
+        <di:waypoint x="600" y="500"/>
+        <di:waypoint x="270" y="500"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14">
+        <di:waypoint x="370" y="500"/>
+        <di:waypoint x="425" y="500"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="170" y="142" width="54" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_1" bpmnElement="ValidarTopaz">
+        <dc:Bounds x="270" y="77" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_2" bpmnElement="ValidarAntifraude">
+        <dc:Bounds x="270" y="140" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_3" bpmnElement="ValidarPix">
+        <dc:Bounds x="270" y="203" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_4" bpmnElement="ValidarSerasa">
+        <dc:Bounds x="270" y="266" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_5" bpmnElement="ValidarProvaVida">
+        <dc:Bounds x="270" y="329" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_6" bpmnElement="AbrirContaSistemaInterno">
+        <dc:Bounds x="270" y="392" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_7" bpmnElement="RegistrarLogSucesso">
+        <dc:Bounds x="270" y="392" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_8" bpmnElement="RegistrarLogRejeicao">
+        <dc:Bounds x="270" y="460" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_1" bpmnElement="GatewayTopaz" isMarkerVisible="true">
+        <dc:Bounds x="425" y="92" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_2" bpmnElement="GatewayAntifraude" isMarkerVisible="true">
+        <dc:Bounds x="425" y="155" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_3" bpmnElement="GatewayPix" isMarkerVisible="true">
+        <dc:Bounds x="425" y="218" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_4" bpmnElement="GatewaySerasa" isMarkerVisible="true">
+        <dc:Bounds x="425" y="281" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_5" bpmnElement="GatewayProvaVida" isMarkerVisible="true">
+        <dc:Bounds x="425" y="344" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1" bpmnElement="EndEvent_Sucesso">
+        <dc:Bounds x="425" y="392" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_2" bpmnElement="EndEvent_Rejeicao">
+        <dc:Bounds x="425" y="460" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+
